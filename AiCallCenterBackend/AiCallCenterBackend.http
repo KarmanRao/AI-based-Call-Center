@@ -1,0 +1,6 @@
+@AiCallCenterBackend_HostAddress = http://localhost:5196
+
+GET {{AiCallCenterBackend_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
