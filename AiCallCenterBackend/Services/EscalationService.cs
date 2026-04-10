@@ -1,72 +1,46 @@
-using AiCallCenterBackend.Controllers;
-using Microsoft.Extensions.Hosting;
+using AiCallCenterBackend.Data;
 
 namespace AiCallCenterBackend.Services
 {
-    // Background worker: checks complaints and escalates when StageDueAt passes
-    public class EscalationService : BackgroundService
+    public class EscalationService
     {
-        private readonly SmsQueue _smsQueue;
-
-        public EscalationService(SmsQueue smsQueue)
+        private static readonly List<string> EscalationLevels = new()
         {
-            _smsQueue = smsQueue;
-        }
+            "Technician",
+            "Supervisor",
+            "Manager",
+            "Director",
+            "Head"
+        };
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        public Task AutoEscalateComplaints()
         {
-            while (!stoppingToken.IsCancellationRequested)
+            lock (ComplaintStore.Lock)
             {
-                try
+                foreach (var complaint in ComplaintStore.Complaints)
                 {
-                    lock (ComplaintsController.ComplaintsLock)
+                    if (complaint.Status == "Resolved")
+                        continue;
+
+                    if (complaint.EscalationLevel >= EscalationLevels.Count - 1)
+                        continue;
+
+                    var timePassed = DateTime.UtcNow - complaint.AssignedAt;
+
+                    if (timePassed.TotalMinutes >= 1)
                     {
-                        var nowUtc = DateTime.UtcNow;
+                        complaint.EscalationLevel++;
 
-                        foreach (var complaint in ComplaintsController.ComplaintsStore)
-                        {
-                            // Skip if resolved
-                            if (string.Equals(complaint.Status, "Resolved", StringComparison.OrdinalIgnoreCase))
-                                continue;
+                        complaint.AssignedTo = EscalationLevels[complaint.EscalationLevel];
+                        complaint.AssignedAt = DateTime.UtcNow;
 
-                            // Only 1 escalation for now (0 -> 1)
-                            if (complaint.EscalationLevel >= 1)
-                                continue;
-
-                            // If not due yet, skip
-                            if (nowUtc <= complaint.StageDueAt)
-                                continue;
-
-                            // ✅ Escalate to head
-                            complaint.EscalationLevel = 1;
-                            complaint.Status = "Escalated";
-
-                            complaint.AssignedTo = ComplaintsController.GetDepartmentHead(complaint.Department);
-                            complaint.AssignedAt = nowUtc;
-
-                            var afterEscalation = ComplaintsController.GetAfterEscalationTimeForSeverity(complaint.Severity);
-                            complaint.StageDueAt = complaint.AssignedAt.Add(afterEscalation);
-
-                            complaint.EscalationNote =
-                                $"Escalated to head at {complaint.AssignedAt:yyyy-MM-dd HH:mm:ss} UTC | " +
-                                $"Severity={complaint.Severity} | New StageDueAt={complaint.StageDueAt:HH:mm:ss} UTC";
-
-                            // ✅ DEMO SMS: escalation update
-                            _ = _smsQueue.EnqueueAsync(new SmsMessage(
-                                complaint.CallerPhone,
-                                $"Ticket {complaint.TicketId}: Escalated. Now assigned to {complaint.AssignedTo}. Status={complaint.Status}"
-                            ));
-                        }
+                        complaint.EscalationNote =
+                            $"Escalated to {complaint.AssignedTo} at {complaint.AssignedAt}";
                     }
                 }
-                catch
-                {
-                    // Keep service alive even if something fails
-                }
-
-                // Check every 5 seconds (trial)
-                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
             }
+
+            return Task.CompletedTask;
         }
     }
 }

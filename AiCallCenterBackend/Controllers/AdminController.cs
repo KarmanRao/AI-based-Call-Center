@@ -1,23 +1,29 @@
-using AiCallCenterBackend.Models;
+using AiCallCenterBackend.Data;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AiCallCenterBackend.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/admin")]
     public class AdminController : ControllerBase
     {
-        [HttpGet("complaints")]
-        public ActionResult<List<ComplaintDto>> GetAllComplaints()
+        [HttpGet("stats")]
+        public IActionResult GetStats()
         {
-            lock (ComplaintsController.ComplaintsLock)
+            lock (ComplaintStore.Lock)
             {
-                var result = ComplaintsController.ComplaintsStore
-                    .OrderByDescending(c => c.CreatedAt)
-                    .Select(ComplaintDto.FromComplaint)
-                    .ToList();
+                var complaints = ComplaintStore.Complaints;
 
-                return Ok(result);
+                var total = complaints.Count;
+                var resolved = complaints.Count(c => c.Status == "Resolved");
+                var pending = complaints.Count(c => c.Status != "Resolved");
+
+                return Ok(new
+                {
+                    Total = total,
+                    Resolved = resolved,
+                    Pending = pending
+                });
             }
         }
     }
