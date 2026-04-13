@@ -1,45 +1,80 @@
 using Microsoft.EntityFrameworkCore;
 using AiCallCenterBackend.Data;
 using AiCallCenterBackend.Services;
+using AiCallCenterBackend.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ================= CONTROLLERS + SWAGGER =================
+// ================= SERVICES =================
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // ================= DATABASE =================
 
-// 🔥 CURRENT (for development)
+// 🔥 CURRENT (InMemory DB for testing)
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseInMemoryDatabase("CallCenterDB"));
 
-// 🟡 FUTURE (Oracle)
+// 🔴 FUTURE (Oracle DB)
 // builder.Services.AddDbContext<AppDbContext>(options =>
 //     options.UseOracle(builder.Configuration.GetConnectionString("OracleDb")));
 
-// ================= SERVICES =================
+// ================= CUSTOM SERVICES =================
 
-// Escalation logic
 builder.Services.AddScoped<EscalationService>();
 
-// 🔥 Background escalation (CORRECT WAY)
-builder.Services.AddHostedService<EscalationBackgroundService>();
-
-// SMS system
 builder.Services.AddSingleton<SmsQueue>();
 builder.Services.AddSingleton<ISmsSender, FakeSmsSender>();
 builder.Services.AddHostedService<SmsWorker>();
 
-// ================= BUILD APP =================
+builder.Services.AddHostedService<EscalationBackgroundService>();
+
 var app = builder.Build();
 
+// ================= SEED DATA (ONLY FOR TESTING) =================
+
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    // 🔥 Only seed if empty
+    if (!context.SlaConfigs.Any())
+    {
+        context.SlaConfigs.AddRange(
+            new SlaConfig
+            {
+                Category = "Electricity",
+                InitialTimeHours = 0.0167,   // ✅ 1 minute
+                ReductionHours = 0.0167,
+                MinTimeHours = 0.0167
+            },
+            new SlaConfig
+            {
+                Category = "Water",
+                InitialTimeHours = 0.0167,
+                ReductionHours = 0.0167,
+                MinTimeHours = 0.0167
+            },
+            new SlaConfig
+            {
+                Category = "Road",
+                InitialTimeHours = 0.0167,
+                ReductionHours = 0.0167,
+                MinTimeHours = 0.0167
+            }
+        );
+
+        context.SaveChanges();
+    }
+}
+
 // ================= MIDDLEWARE =================
+
 app.UseSwagger();
 app.UseSwaggerUI();
 
 app.MapControllers();
 
-// ================= RUN =================
 app.Run();

@@ -1,20 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using AiCallCenterBackend.Data;
+using AiCallCenterBackend.Models;
 
 namespace AiCallCenterBackend.Services
 {
     public class EscalationService
     {
         private readonly AppDbContext _context;
-
-        private static readonly List<string> Levels = new()
-        {
-            "Technician",
-            "Supervisor",
-            "Manager",
-            "Director",
-            "Head"
-        };
 
         public EscalationService(AppDbContext context)
         {
@@ -29,20 +21,32 @@ namespace AiCallCenterBackend.Services
 
             foreach (var complaint in complaints)
             {
-                if (complaint.EscalationLevel >= Levels.Count - 1)
+                if (complaint.EscalationLevel >= 4)
                     continue;
 
-                var timePassed = DateTime.UtcNow - complaint.AssignedAt;
-
-                if (timePassed.TotalSeconds >= 10) // 🔥 change later as needed
+                if (DateTime.UtcNow >= complaint.StageDueAt)
                 {
                     complaint.EscalationLevel++;
-                    complaint.AssignedTo = Levels[complaint.EscalationLevel];
+
+                    complaint.AssignedTo = EscalationHelper.GetNextLevel(complaint.EscalationLevel);
+
+                    // 🔥 REDUCE TIME
+                    complaint.CurrentStageTime -= complaint.ReductionTime;
+
+                    if (complaint.CurrentStageTime < complaint.MinStageTime)
+                    {
+                        complaint.CurrentStageTime = complaint.MinStageTime;
+                    }
+
                     complaint.AssignedAt = DateTime.UtcNow;
+                    complaint.StageDueAt = complaint.AssignedAt + complaint.CurrentStageTime;
                 }
             }
 
-            await _context.SaveChangesAsync(); // 🔥 DB SAVE POINT
+            await _context.SaveChangesAsync();
+
+            // 🔴 FUTURE (Oracle)
+            // This SaveChanges will persist data in real DB automatically
         }
     }
 }

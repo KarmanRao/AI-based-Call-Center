@@ -6,8 +6,11 @@ namespace AiCallCenterBackend.Models
 
         public string Category { get; set; } = string.Empty;
 
-        public int InitialTimeHours { get; set; }   // e.g. 12
-        public int ReductionHours { get; set; }     // e.g. 2
-        public int MinTimeHours { get; set; }       // e.g. 4
+        public double InitialTimeHours { get; set; }
+        public double ReductionHours { get; set; }
+        public double MinTimeHours { get; set; }
+
+        // 🔴 FUTURE
+        // This table will be manually managed from DB (Admin Panel later)
     }
 }

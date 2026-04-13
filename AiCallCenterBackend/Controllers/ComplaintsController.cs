@@ -21,122 +21,65 @@ namespace AiCallCenterBackend.Controllers
 
         // ================= GET ALL =================
         [HttpGet]
-        public async Task<ActionResult<List<ComplaintDto>>> GetAll()
+        public async Task<ActionResult<List<Complaint>>> GetAll()
         {
-            var complaints = await _context.Complaints
+            return await _context.Complaints
                 .OrderByDescending(c => c.CreatedAt)
                 .ToListAsync();
-
-            var result = complaints
-                .Select(ComplaintDto.FromComplaint)
-                .ToList();
-
-            return Ok(result);
-        }
-
-        // ================= GET BY TICKET =================
-        [HttpGet("{ticketId}")]
-        public async Task<ActionResult<ComplaintDto>> GetByTicketId(string ticketId)
-        {
-            var complaint = await _context.Complaints
-                .FirstOrDefaultAsync(c => c.TicketId == ticketId);
-
-            if (complaint == null)
-                return NotFound("Complaint not found");
-
-            return Ok(ComplaintDto.FromComplaint(complaint));
         }
 
         // ================= CREATE =================
         [HttpPost]
-        public async Task<ActionResult<ComplaintDto>> Create(Complaint complaint)
+        public async Task<ActionResult<Complaint>> Create(Complaint complaint)
         {
-            // 🔥 Auto-generated fields
             complaint.TicketId = $"TKT-{Guid.NewGuid().ToString("N")[..8].ToUpper()}";
             complaint.CreatedAt = DateTime.UtcNow;
             complaint.Status = "New";
 
-            // 🔥 Map Category → Department
+            // 🔥 CATEGORY → DEPARTMENT
             complaint.Department = MapCategoryToDepartment(complaint.Category);
 
-            // 🔥 Initial assignment
-            complaint.EscalationLevel = 0;
+            // 🔥 FETCH SLA FROM DB
+            var sla = await _context.SlaConfigs
+                .FirstOrDefaultAsync(x => x.Category.ToLower() == complaint.Category.ToLower());
+
+            if (sla == null)
+                return BadRequest("No SLA defined for this category");
+
+            // 🔥 APPLY SLA
+            complaint.CurrentStageTime = TimeSpan.FromHours(sla.InitialTimeHours);
+            complaint.ReductionTime = TimeSpan.FromHours(sla.ReductionHours);
+            complaint.MinStageTime = TimeSpan.FromHours(sla.MinTimeHours);
+
             complaint.AssignedTo = "Technician";
+            complaint.EscalationLevel = 0;
             complaint.AssignedAt = DateTime.UtcNow;
+
+            complaint.StageDueAt = complaint.AssignedAt + complaint.CurrentStageTime;
 
             _context.Complaints.Add(complaint);
             await _context.SaveChangesAsync();
 
-            // 🔥 Simulated SMS
             await _smsQueue.EnqueueAsync(new SmsMessage(
                 complaint.CallerPhone,
-                $"Ticket {complaint.TicketId}: Registered in {complaint.Department}"
+                $"Ticket {complaint.TicketId} registered"
             ));
 
-            return Ok(ComplaintDto.FromComplaint(complaint));
-        }
-
-        // ================= UPDATE STATUS =================
-        [HttpPatch("{ticketId}/status")]
-        public async Task<ActionResult<ComplaintDto>> UpdateStatus(string ticketId, UpdateStatusRequest request)
-        {
-            var complaint = await _context.Complaints
-                .FirstOrDefaultAsync(c => c.TicketId == ticketId);
-
-            if (complaint == null)
-                return NotFound("Complaint not found");
-
-            if (string.IsNullOrWhiteSpace(request.Status))
-                return BadRequest("Status is required");
-
-            complaint.Status = request.Status.Trim();
-
-            await _context.SaveChangesAsync();
-
-            return Ok(ComplaintDto.FromComplaint(complaint));
-        }
-
-        // ================= RESOLVE =================
-        [HttpPatch("{ticketId}/resolve")]
-        public async Task<ActionResult<ComplaintDto>> Resolve(string ticketId, ResolveRequest request)
-        {
-            var complaint = await _context.Complaints
-                .FirstOrDefaultAsync(c => c.TicketId == ticketId);
-
-            if (complaint == null)
-                return NotFound("Complaint not found");
-
-            complaint.Status = "Resolved";
-
-            await _context.SaveChangesAsync();
-
-            return Ok(ComplaintDto.FromComplaint(complaint));
+            return Ok(complaint);
         }
 
         // ================= HELPER =================
         private static string MapCategoryToDepartment(string category)
         {
-            var normalized = (category ?? "").Trim().ToLower();
+            var normalized = (category ?? "").ToLower();
 
             return normalized switch
             {
+                "electricity" => "ElectricityDepartment",
                 "water" => "WaterDepartment",
                 "road" => "RoadDepartment",
-                "electricity" => "ElectricityDepartment",
                 _ => "GeneralDepartment"
             };
         }
-    }
-
-    // ================= DTOs =================
-
-    public class UpdateStatusRequest
-    {
-        public string Status { get; set; } = string.Empty;
-    }
-
-    public class ResolveRequest
-    {
-        public string? Note { get; set; }
     }
 }
