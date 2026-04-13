@@ -1,10 +1,13 @@
+using Microsoft.EntityFrameworkCore;
 using AiCallCenterBackend.Data;
 
 namespace AiCallCenterBackend.Services
 {
     public class EscalationService
     {
-        private static readonly List<string> EscalationLevels = new()
+        private readonly AppDbContext _context;
+
+        private static readonly List<string> Levels = new()
         {
             "Technician",
             "Supervisor",
@@ -13,34 +16,33 @@ namespace AiCallCenterBackend.Services
             "Head"
         };
 
-        public Task AutoEscalateComplaints()
+        public EscalationService(AppDbContext context)
         {
-            lock (ComplaintStore.Lock)
+            _context = context;
+        }
+
+        public async Task AutoEscalateComplaints()
+        {
+            var complaints = await _context.Complaints
+                .Where(c => c.Status != "Resolved")
+                .ToListAsync();
+
+            foreach (var complaint in complaints)
             {
-                foreach (var complaint in ComplaintStore.Complaints)
+                if (complaint.EscalationLevel >= Levels.Count - 1)
+                    continue;
+
+                var timePassed = DateTime.UtcNow - complaint.AssignedAt;
+
+                if (timePassed.TotalSeconds >= 10) // 🔥 change later as needed
                 {
-                    if (complaint.Status == "Resolved")
-                        continue;
-
-                    if (complaint.EscalationLevel >= EscalationLevels.Count - 1)
-                        continue;
-
-                    var timePassed = DateTime.UtcNow - complaint.AssignedAt;
-
-                    if (timePassed.TotalMinutes >= 1)
-                    {
-                        complaint.EscalationLevel++;
-
-                        complaint.AssignedTo = EscalationLevels[complaint.EscalationLevel];
-                        complaint.AssignedAt = DateTime.UtcNow;
-
-                        complaint.EscalationNote =
-                            $"Escalated to {complaint.AssignedTo} at {complaint.AssignedAt}";
-                    }
+                    complaint.EscalationLevel++;
+                    complaint.AssignedTo = Levels[complaint.EscalationLevel];
+                    complaint.AssignedAt = DateTime.UtcNow;
                 }
             }
 
-            return Task.CompletedTask;
+            await _context.SaveChangesAsync(); // 🔥 DB SAVE POINT
         }
     }
 }

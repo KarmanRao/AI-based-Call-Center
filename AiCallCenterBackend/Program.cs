@@ -1,49 +1,45 @@
+using Microsoft.EntityFrameworkCore;
 using AiCallCenterBackend.Data;
 using AiCallCenterBackend.Services;
-using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container
+// ================= CONTROLLERS + SWAGGER =================
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Register DbContext (In-Memory for now)
+// ================= DATABASE =================
+
+// 🔥 CURRENT (for development)
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseInMemoryDatabase("CallCenterDB"));
 
-// Register Escalation Service
+// 🟡 FUTURE (Oracle)
+// builder.Services.AddDbContext<AppDbContext>(options =>
+//     options.UseOracle(builder.Configuration.GetConnectionString("OracleDb")));
+
+// ================= SERVICES =================
+
+// Escalation logic
 builder.Services.AddScoped<EscalationService>();
 
-builder.Services.AddSingleton<SmsQueue>();
+// 🔥 Background escalation (CORRECT WAY)
+builder.Services.AddHostedService<EscalationBackgroundService>();
 
+// SMS system
+builder.Services.AddSingleton<SmsQueue>();
+builder.Services.AddSingleton<ISmsSender, FakeSmsSender>();
+builder.Services.AddHostedService<SmsWorker>();
+
+// ================= BUILD APP =================
 var app = builder.Build();
 
-// Configure middleware
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// ================= MIDDLEWARE =================
+app.UseSwagger();
+app.UseSwaggerUI();
 
-app.UseAuthorization();
 app.MapControllers();
 
-
-// 🔥 BACKGROUND ESCALATION LOOP
-using (var scope = app.Services.CreateScope())
-{
-    var escalationService = scope.ServiceProvider.GetRequiredService<EscalationService>();
-
-    Task.Run(async () =>
-    {
-        while (true)
-        {
-            await escalationService.AutoEscalateComplaints();
-            await Task.Delay(10000); // every 10 seconds
-        }
-    });
-}
-
+// ================= RUN =================
 app.Run();

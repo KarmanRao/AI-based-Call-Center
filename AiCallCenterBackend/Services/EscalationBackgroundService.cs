@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Hosting;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace AiCallCenterBackend.Services
 {
@@ -18,10 +20,11 @@ namespace AiCallCenterBackend.Services
                 using (var scope = _serviceProvider.CreateScope())
                 {
                     var escalationService = scope.ServiceProvider.GetRequiredService<EscalationService>();
+
                     await escalationService.AutoEscalateComplaints();
                 }
 
-                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken); // runs every 30 sec
+                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken); // 🔥 check every 30 sec
             }
         }
     }
