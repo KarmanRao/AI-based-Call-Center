@@ -36,21 +36,6 @@ namespace AiCallCenterBackend.Controllers
             complaint.CreatedAt = DateTime.UtcNow;
             complaint.Status = "New";
 
-            // 🔥 CATEGORY → DEPARTMENT
-            complaint.Department = MapCategoryToDepartment(complaint.Category);
-
-            // 🔥 FETCH SLA FROM DB
-            var sla = await _context.SlaConfigs
-                .FirstOrDefaultAsync(x => x.Category.ToLower() == complaint.Category.ToLower());
-
-            if (sla == null)
-                return BadRequest("No SLA defined for this category");
-
-            // 🔥 APPLY SLA
-            complaint.CurrentStageTime = TimeSpan.FromHours(sla.InitialTimeHours);
-            complaint.ReductionTime = TimeSpan.FromHours(sla.ReductionHours);
-            complaint.MinStageTime = TimeSpan.FromHours(sla.MinTimeHours);
-
             complaint.AssignedTo = "Technician";
             complaint.EscalationLevel = 0;
             complaint.AssignedAt = DateTime.UtcNow;
@@ -60,50 +45,59 @@ namespace AiCallCenterBackend.Controllers
             _context.Complaints.Add(complaint);
             await _context.SaveChangesAsync();
 
-            await _smsQueue.EnqueueAsync(new SmsMessage(
-                complaint.CallerPhone,
-                $"Ticket {complaint.TicketId} registered"
-            ));
-
             return Ok(complaint);
         }
 
-        // ================= ✅ RESOLVE COMPLAINT =================
+        // ================= RESOLVE =================
         [HttpPut("resolve/{id}")]
         public async Task<IActionResult> ResolveComplaint(int id)
         {
             var complaint = await _context.Complaints.FirstOrDefaultAsync(c => c.Id == id);
 
             if (complaint == null)
-                return NotFound("Complaint not found");
+                return NotFound();
 
-            // 🔥 Update status
             complaint.Status = "Resolved";
             complaint.ResolvedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
 
-            // 🔥 OPTIONAL: Send SMS on resolve
-            await _smsQueue.EnqueueAsync(new SmsMessage(
-                complaint.CallerPhone,
-                $"Your complaint {complaint.TicketId} has been resolved."
-            ));
-
             return Ok(complaint);
         }
 
-        // ================= HELPER =================
-        private static string MapCategoryToDepartment(string category)
+        // ================= ESCALATE (FINAL FIXED LOGIC) =================
+        [HttpPut("escalate/{id}")]
+        public async Task<IActionResult> EscalateComplaint(int id)
         {
-            var normalized = (category ?? "").ToLower();
+            var complaint = await _context.Complaints.FirstOrDefaultAsync(c => c.Id == id);
 
-            return normalized switch
+            if (complaint == null)
+                return NotFound("Complaint not found");
+
+            // ❌ No escalation after resolve
+            if (complaint.Status == "Resolved")
+                return BadRequest("Cannot escalate resolved complaint");
+
+            // ❌ Max escalation reached
+            if (complaint.EscalationLevel >= 3)
+                return BadRequest("Already at Director level. No further escalation allowed.");
+
+            complaint.EscalationLevel += 1;
+
+            complaint.AssignedAt = DateTime.UtcNow;
+            complaint.StageDueAt = complaint.AssignedAt + complaint.CurrentStageTime;
+
+            complaint.AssignedTo = complaint.EscalationLevel switch
             {
-                "electricity" => "ElectricityDepartment",
-                "water" => "WaterDepartment",
-                "road" => "RoadDepartment",
-                _ => "GeneralDepartment"
+                1 => "Junior Officer",
+                2 => "Senior Officer",
+                3 => "Director",
+                _ => "Director"
             };
+
+            await _context.SaveChangesAsync();
+
+            return Ok(complaint);
         }
     }
 }

@@ -20,13 +20,19 @@ interface Complaint {
   escalationLevel: number;
 
   stageDueAt: string;
-
   resolvedAt?: string;
 }
 
 function Dashboard() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
 
+  const cellStyle = {
+    border: "1px solid #ccc",
+    padding: "8px",
+    whiteSpace: "nowrap" as const,
+  };
+
+  // ================= FETCH =================
   useEffect(() => {
     fetch("http://localhost:5196/api/complaints")
       .then((res) => res.json())
@@ -34,30 +40,38 @@ function Dashboard() {
       .catch((err) => console.error(err));
   }, []);
 
+  // ================= RESOLVE =================
   const handleResolve = async (id: number) => {
-    try {
-      const res = await fetch(
-        `http://localhost:5196/api/complaints/resolve/${id}`,
-        { method: "PUT" }
-      );
+    const res = await fetch(
+      `http://localhost:5196/api/complaints/resolve/${id}`,
+      { method: "PUT" }
+    );
 
-      if (!res.ok) {
-        alert("Failed to resolve complaint");
-        return;
-      }
+    const updated = await res.json();
 
-      const updatedComplaint = await res.json();
+    setComplaints((prev) =>
+      prev.map((c) => (c.id === id ? updated : c))
+    );
+  };
 
-      setComplaints((prev) =>
-        prev.map((c) =>
-          c.id === id
-            ? { ...c, status: "Resolved", resolvedAt: updatedComplaint.resolvedAt }
-            : c
-        )
-      );
-    } catch (error) {
-      console.error("Error:", error);
+  // ================= ESCALATE =================
+  const handleEscalate = async (id: number) => {
+    const res = await fetch(
+      `http://localhost:5196/api/complaints/escalate/${id}`,
+      { method: "PUT" }
+    );
+
+    if (!res.ok) {
+      const msg = await res.text();
+      alert(msg);
+      return;
     }
+
+    const updated = await res.json();
+
+    setComplaints((prev) =>
+      prev.map((c) => (c.id === id ? updated : c))
+    );
   };
 
   return (
@@ -69,124 +83,97 @@ function Dashboard() {
           style={{
             width: "100%",
             borderCollapse: "collapse",
-            minWidth: "1400px",
+            minWidth: "1600px",
+            border: "1px solid #ccc",
           }}
         >
           <thead>
             <tr>
-              {[
-                "Ticket",
-                "User",
-                "Phone",
-                "Ward",
-                "Area",
-                "Address",
-                "Category",
-                "Department",
-                "Description",
-                "Status",
-                "Escalation",
-                "Assigned To",
-                "Created",
-                "Due Time",
-                "Resolved At",
-                "Action",
-              ].map((header) => (
-                <th
-                  key={header}
-                  style={{
-                    border: "1px solid #ccc",   // ✅ HEADER BORDER
-                    padding: "8px",
-                    backgroundColor: "#f5f5f5",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {header}
-                </th>
-              ))}
+              <th style={cellStyle}>Ticket</th>
+              <th style={cellStyle}>User</th>
+              <th style={cellStyle}>Phone</th>
+              <th style={cellStyle}>Ward</th>
+              <th style={cellStyle}>Area</th>
+              <th style={cellStyle}>Address</th>
+              <th style={cellStyle}>Category</th>
+              <th style={cellStyle}>Department</th>
+              <th style={cellStyle}>Status</th>
+              <th style={cellStyle}>Escalation</th>
+              <th style={cellStyle}>Assigned</th>
+              <th style={cellStyle}>Created</th>
+              <th style={cellStyle}>Due</th>
+              <th style={cellStyle}>Resolved</th>
+              <th style={cellStyle}>Action</th>
             </tr>
           </thead>
 
           <tbody>
             {complaints.map((c) => (
               <tr key={c.id}>
-                {[
-                  c.ticketId,
-                  c.userName,
-                  c.callerPhone,
-                  c.wardId,
-                  c.areaId,
-                  c.address,
-                  c.category,
-                  c.department,
-                  c.description,
-                ].map((value, index) => (
-                  <td
-                    key={index}
-                    style={{
-                      border: "1px solid #ccc",   // ✅ CELL BORDER
-                      padding: "8px",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {value}
-                  </td>
-                ))}
+                <td style={cellStyle}>{c.ticketId}</td>
+                <td style={cellStyle}>{c.userName}</td>
+                <td style={cellStyle}>{c.callerPhone}</td>
+                <td style={cellStyle}>{c.wardId}</td>
+                <td style={cellStyle}>{c.areaId}</td>
+                <td style={cellStyle}>{c.address}</td>
+                <td style={cellStyle}>{c.category}</td>
+                <td style={cellStyle}>{c.department}</td>
 
-                {/* STATUS */}
-                <td
-                  style={{
-                    border: "1px solid #ccc",
-                    padding: "8px",
-                    color: c.status === "Resolved" ? "green" : "red",
-                    fontWeight: "bold",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {c.status}
-                </td>
+                <td style={cellStyle}>{c.status}</td>
+                <td style={cellStyle}>{c.escalationLevel}</td>
+                <td style={cellStyle}>{c.assignedTo}</td>
 
-                <td style={{ border: "1px solid #ccc", padding: "8px" }}>
-                  Level {c.escalationLevel}
-                </td>
-
-                <td style={{ border: "1px solid #ccc", padding: "8px" }}>
-                  {c.assignedTo}
-                </td>
-
-                <td style={{ border: "1px solid #ccc", padding: "8px" }}>
+                <td style={cellStyle}>
                   {new Date(c.createdAt).toLocaleString()}
                 </td>
 
-                <td style={{ border: "1px solid #ccc", padding: "8px" }}>
+                <td style={cellStyle}>
                   {new Date(c.stageDueAt).toLocaleString()}
                 </td>
 
-                <td style={{ border: "1px solid #ccc", padding: "8px" }}>
+                <td style={cellStyle}>
                   {c.resolvedAt
                     ? new Date(c.resolvedAt).toLocaleString()
                     : "-"}
                 </td>
 
-                {/* ACTION */}
-                <td style={{ border: "1px solid #ccc", padding: "8px" }}>
-                  {c.status !== "Resolved" ? (
-                    <button
-                      onClick={() => handleResolve(c.id)}
-                      style={{
-                        padding: "5px 10px",
-                        backgroundColor: "#28a745",
-                        color: "white",
-                        border: "none",
-                        cursor: "pointer",
-                        borderRadius: "4px",
-                      }}
-                    >
-                      Resolve
-                    </button>
-                  ) : (
-                    "✔"
-                  )}
+                {/* ================= ACTION ================= */}
+                <td style={cellStyle}>
+                  <div style={{ display: "flex", gap: "8px" }}>
+
+                    {/* ESCALATE RULE */}
+                    {c.status !== "Resolved" && c.escalationLevel < 3 && (
+                      <button
+                        onClick={() => handleEscalate(c.id)}
+                        style={{
+                          background: "orange",
+                          color: "white",
+                          border: "none",
+                          padding: "6px 10px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Escalate
+                      </button>
+                    )}
+
+                    {/* RESOLVE RULE */}
+                    {c.status !== "Resolved" && (
+                      <button
+                        onClick={() => handleResolve(c.id)}
+                        style={{
+                          background: "green",
+                          color: "white",
+                          border: "none",
+                          padding: "6px 10px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Resolve
+                      </button>
+                    )}
+
+                  </div>
                 </td>
               </tr>
             ))}
