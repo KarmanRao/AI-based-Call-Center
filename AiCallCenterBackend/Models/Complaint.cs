@@ -30,9 +30,11 @@ namespace AiCallCenterBackend.Models
 
         public DateTime StageDueAt { get; set; }
 
-        // 🔥 NEW: Resolution Note
+        // ================= RESOLUTION =================
         public string? ResolutionNote { get; set; }
-
         public DateTime? ResolvedAt { get; set; }
+
+        // 📸 IMAGE PROOF (BASE64)
+        public string? ResolutionImageBase64 { get; set; }
     }
 }

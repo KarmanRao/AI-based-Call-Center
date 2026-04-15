@@ -1,5 +1,4 @@
 using AiCallCenterBackend.Models;
-using AiCallCenterBackend.Services;
 using AiCallCenterBackend.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -46,27 +45,9 @@ namespace AiCallCenterBackend.Controllers
             return Ok(complaint);
         }
 
-        // ================= RESOLVE (WITH NOTE) =================
-        [HttpPut("resolve/{id}")]
-        public async Task<IActionResult> ResolveComplaint(int id, [FromBody] string note)
-        {
-            var complaint = await _context.Complaints.FirstOrDefaultAsync(c => c.Id == id);
-
-            if (complaint == null)
-                return NotFound();
-
-            complaint.Status = "Resolved";
-            complaint.ResolvedAt = DateTime.UtcNow;
-            complaint.ResolutionNote = note;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(complaint);
-        }
-
         // ================= ESCALATE =================
         [HttpPut("escalate/{id}")]
-        public async Task<IActionResult> EscalateComplaint(int id)
+        public async Task<IActionResult> Escalate(int id)
         {
             var complaint = await _context.Complaints.FirstOrDefaultAsync(c => c.Id == id);
 
@@ -74,10 +55,10 @@ namespace AiCallCenterBackend.Controllers
                 return NotFound();
 
             if (complaint.Status == "Resolved")
-                return BadRequest("Already resolved");
+                return BadRequest("Cannot escalate resolved complaint");
 
             if (complaint.EscalationLevel >= 3)
-                return BadRequest("Max escalation reached");
+                return BadRequest("Already at Director level");
 
             complaint.EscalationLevel += 1;
             complaint.AssignedAt = DateTime.UtcNow;
@@ -95,5 +76,39 @@ namespace AiCallCenterBackend.Controllers
 
             return Ok(complaint);
         }
+
+        // ================= RESOLVE (STRICT VALIDATION) =================
+        [HttpPut("resolve/{id}")]
+        public async Task<IActionResult> Resolve(int id, [FromBody] ResolveRequest request)
+        {
+            var complaint = await _context.Complaints.FirstOrDefaultAsync(c => c.Id == id);
+
+            if (complaint == null)
+                return NotFound("Complaint not found");
+
+            // ❌ STRICT RULES
+            if (string.IsNullOrWhiteSpace(request.Note))
+                return BadRequest("Resolution note is required");
+
+            if (string.IsNullOrWhiteSpace(request.ImageBase64))
+                return BadRequest("Resolution image is required");
+
+            complaint.Status = "Resolved";
+            complaint.ResolvedAt = DateTime.UtcNow;
+
+            complaint.ResolutionNote = request.Note;
+            complaint.ResolutionImageBase64 = request.ImageBase64;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(complaint);
+        }
+    }
+
+    // ================= DTO =================
+    public class ResolveRequest
+    {
+        public string Note { get; set; } = "";
+        public string ImageBase64 { get; set; } = "";
     }
 }
