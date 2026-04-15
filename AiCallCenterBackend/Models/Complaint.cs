@@ -34,6 +34,9 @@ namespace AiCallCenterBackend.Models
 
         public DateTime StageDueAt { get; set; }
 
+        // ✅ ✅ ADD THIS ONLY
+        public DateTime? ResolvedAt { get; set; }
+
         // 🔴 FUTURE (Oracle)
         // TimeSpan may need conversion if Oracle has issues:
         // Option: store as NUMBER (minutes) instead of TimeSpan

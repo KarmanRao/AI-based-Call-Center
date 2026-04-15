@@ -68,6 +68,30 @@ namespace AiCallCenterBackend.Controllers
             return Ok(complaint);
         }
 
+        // ================= ✅ RESOLVE COMPLAINT =================
+        [HttpPut("resolve/{id}")]
+        public async Task<IActionResult> ResolveComplaint(int id)
+        {
+            var complaint = await _context.Complaints.FirstOrDefaultAsync(c => c.Id == id);
+
+            if (complaint == null)
+                return NotFound("Complaint not found");
+
+            // 🔥 Update status
+            complaint.Status = "Resolved";
+            complaint.ResolvedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            // 🔥 OPTIONAL: Send SMS on resolve
+            await _smsQueue.EnqueueAsync(new SmsMessage(
+                complaint.CallerPhone,
+                $"Your complaint {complaint.TicketId} has been resolved."
+            ));
+
+            return Ok(complaint);
+        }
+
         // ================= HELPER =================
         private static string MapCategoryToDepartment(string category)
         {

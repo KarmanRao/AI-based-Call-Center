@@ -13,13 +13,8 @@ builder.Services.AddSwaggerGen();
 
 // ================= DATABASE =================
 
-// 🔥 CURRENT (InMemory DB for testing)
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseInMemoryDatabase("CallCenterDB"));
-
-// 🔴 FUTURE (Oracle DB)
-// builder.Services.AddDbContext<AppDbContext>(options =>
-//     options.UseOracle(builder.Configuration.GetConnectionString("OracleDb")));
 
 // ================= CUSTOM SERVICES =================
 
@@ -31,22 +26,34 @@ builder.Services.AddHostedService<SmsWorker>();
 
 builder.Services.AddHostedService<EscalationBackgroundService>();
 
+// ================= CORS (🔥 ADD THIS) =================
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend",
+        policy =>
+        {
+            policy.WithOrigins("http://localhost:5173")
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        });
+});
+
 var app = builder.Build();
 
-// ================= SEED DATA (ONLY FOR TESTING) =================
+// ================= SEED DATA =================
 
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-    // 🔥 Only seed if empty
     if (!context.SlaConfigs.Any())
     {
         context.SlaConfigs.AddRange(
             new SlaConfig
             {
                 Category = "Electricity",
-                InitialTimeHours = 0.0167,   // ✅ 1 minute
+                InitialTimeHours = 0.0167,
                 ReductionHours = 0.0167,
                 MinTimeHours = 0.0167
             },
@@ -74,6 +81,9 @@ using (var scope = app.Services.CreateScope())
 
 app.UseSwagger();
 app.UseSwaggerUI();
+
+// 🔥 IMPORTANT: CORS MUST COME BEFORE MapControllers
+app.UseCors("AllowFrontend");
 
 app.MapControllers();
 
