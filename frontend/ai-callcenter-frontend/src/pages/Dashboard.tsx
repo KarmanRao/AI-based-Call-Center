@@ -21,10 +21,13 @@ interface Complaint {
 
   stageDueAt: string;
   resolvedAt?: string;
+
+  resolutionNote?: string;
 }
 
 function Dashboard() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [notes, setNotes] = useState<{ [key: number]: string }>({});
 
   const cellStyle = {
     border: "1px solid #ccc",
@@ -32,27 +35,11 @@ function Dashboard() {
     whiteSpace: "nowrap" as const,
   };
 
-  // ================= FETCH =================
   useEffect(() => {
     fetch("http://localhost:5196/api/complaints")
       .then((res) => res.json())
-      .then((data) => setComplaints(data))
-      .catch((err) => console.error(err));
+      .then((data) => setComplaints(data));
   }, []);
-
-  // ================= RESOLVE =================
-  const handleResolve = async (id: number) => {
-    const res = await fetch(
-      `http://localhost:5196/api/complaints/resolve/${id}`,
-      { method: "PUT" }
-    );
-
-    const updated = await res.json();
-
-    setComplaints((prev) =>
-      prev.map((c) => (c.id === id ? updated : c))
-    );
-  };
 
   // ================= ESCALATE =================
   const handleEscalate = async (id: number) => {
@@ -62,8 +49,34 @@ function Dashboard() {
     );
 
     if (!res.ok) {
-      const msg = await res.text();
-      alert(msg);
+      alert(await res.text());
+      return;
+    }
+
+    const updated = await res.json();
+
+    setComplaints((prev) =>
+      prev.map((c) => (c.id === id ? updated : c))
+    );
+  };
+
+  // ================= RESOLVE =================
+  const handleResolve = async (id: number) => {
+    const note = notes[id] || "";
+
+    const res = await fetch(
+      `http://localhost:5196/api/complaints/resolve/${id}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(note),
+      }
+    );
+
+    if (!res.ok) {
+      alert("Resolve failed");
       return;
     }
 
@@ -84,7 +97,6 @@ function Dashboard() {
             width: "100%",
             borderCollapse: "collapse",
             minWidth: "1600px",
-            border: "1px solid #ccc",
           }}
         >
           <thead>
@@ -103,6 +115,7 @@ function Dashboard() {
               <th style={cellStyle}>Created</th>
               <th style={cellStyle}>Due</th>
               <th style={cellStyle}>Resolved</th>
+              <th style={cellStyle}>Resolution Note</th>
               <th style={cellStyle}>Action</th>
             </tr>
           </thead>
@@ -118,61 +131,71 @@ function Dashboard() {
                 <td style={cellStyle}>{c.address}</td>
                 <td style={cellStyle}>{c.category}</td>
                 <td style={cellStyle}>{c.department}</td>
-
                 <td style={cellStyle}>{c.status}</td>
                 <td style={cellStyle}>{c.escalationLevel}</td>
                 <td style={cellStyle}>{c.assignedTo}</td>
-
+                <td style={cellStyle}>{new Date(c.createdAt).toLocaleString()}</td>
+                <td style={cellStyle}>{new Date(c.stageDueAt).toLocaleString()}</td>
                 <td style={cellStyle}>
-                  {new Date(c.createdAt).toLocaleString()}
+                  {c.resolvedAt ? new Date(c.resolvedAt).toLocaleString() : "-"}
+                </td>
+                <td style={cellStyle}>
+                  {c.resolutionNote || "-"}
                 </td>
 
+                {/* ACTION */}
                 <td style={cellStyle}>
-                  {new Date(c.stageDueAt).toLocaleString()}
-                </td>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
 
-                <td style={cellStyle}>
-                  {c.resolvedAt
-                    ? new Date(c.resolvedAt).toLocaleString()
-                    : "-"}
-                </td>
-
-                {/* ================= ACTION ================= */}
-                <td style={cellStyle}>
-                  <div style={{ display: "flex", gap: "8px" }}>
-
-                    {/* ESCALATE RULE */}
-                    {c.status !== "Resolved" && c.escalationLevel < 3 && (
-                      <button
-                        onClick={() => handleEscalate(c.id)}
-                        style={{
-                          background: "orange",
-                          color: "white",
-                          border: "none",
-                          padding: "6px 10px",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Escalate
-                      </button>
-                    )}
-
-                    {/* RESOLVE RULE */}
+                    {/* NOTE INPUT */}
                     {c.status !== "Resolved" && (
-                      <button
-                        onClick={() => handleResolve(c.id)}
+                      <input
+                        placeholder="Resolution note"
+                        value={notes[c.id] || ""}
+                        onChange={(e) =>
+                          setNotes({
+                            ...notes,
+                            [c.id]: e.target.value,
+                          })
+                        }
                         style={{
-                          background: "green",
-                          color: "white",
-                          border: "none",
-                          padding: "6px 10px",
-                          cursor: "pointer",
+                          padding: "5px",
+                          fontSize: "12px",
                         }}
-                      >
-                        Resolve
-                      </button>
+                      />
                     )}
 
+                    <div style={{ display: "flex", gap: "5px" }}>
+                      {/* ESCALATE */}
+                      {c.status !== "Resolved" && c.escalationLevel < 3 && (
+                        <button
+                          onClick={() => handleEscalate(c.id)}
+                          style={{
+                            background: "orange",
+                            color: "white",
+                            border: "none",
+                            padding: "5px",
+                          }}
+                        >
+                          Escalate
+                        </button>
+                      )}
+
+                      {/* RESOLVE */}
+                      {c.status !== "Resolved" && (
+                        <button
+                          onClick={() => handleResolve(c.id)}
+                          style={{
+                            background: "green",
+                            color: "white",
+                            border: "none",
+                            padding: "5px",
+                          }}
+                        >
+                          Resolve
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </td>
               </tr>

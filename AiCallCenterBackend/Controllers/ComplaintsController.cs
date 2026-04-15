@@ -11,12 +11,10 @@ namespace AiCallCenterBackend.Controllers
     public class ComplaintsController : ControllerBase
     {
         private readonly AppDbContext _context;
-        private readonly SmsQueue _smsQueue;
 
-        public ComplaintsController(AppDbContext context, SmsQueue smsQueue)
+        public ComplaintsController(AppDbContext context)
         {
             _context = context;
-            _smsQueue = smsQueue;
         }
 
         // ================= GET ALL =================
@@ -48,9 +46,9 @@ namespace AiCallCenterBackend.Controllers
             return Ok(complaint);
         }
 
-        // ================= RESOLVE =================
+        // ================= RESOLVE (WITH NOTE) =================
         [HttpPut("resolve/{id}")]
-        public async Task<IActionResult> ResolveComplaint(int id)
+        public async Task<IActionResult> ResolveComplaint(int id, [FromBody] string note)
         {
             var complaint = await _context.Complaints.FirstOrDefaultAsync(c => c.Id == id);
 
@@ -59,31 +57,29 @@ namespace AiCallCenterBackend.Controllers
 
             complaint.Status = "Resolved";
             complaint.ResolvedAt = DateTime.UtcNow;
+            complaint.ResolutionNote = note;
 
             await _context.SaveChangesAsync();
 
             return Ok(complaint);
         }
 
-        // ================= ESCALATE (FINAL FIXED LOGIC) =================
+        // ================= ESCALATE =================
         [HttpPut("escalate/{id}")]
         public async Task<IActionResult> EscalateComplaint(int id)
         {
             var complaint = await _context.Complaints.FirstOrDefaultAsync(c => c.Id == id);
 
             if (complaint == null)
-                return NotFound("Complaint not found");
+                return NotFound();
 
-            // ❌ No escalation after resolve
             if (complaint.Status == "Resolved")
-                return BadRequest("Cannot escalate resolved complaint");
+                return BadRequest("Already resolved");
 
-            // ❌ Max escalation reached
             if (complaint.EscalationLevel >= 3)
-                return BadRequest("Already at Director level. No further escalation allowed.");
+                return BadRequest("Max escalation reached");
 
             complaint.EscalationLevel += 1;
-
             complaint.AssignedAt = DateTime.UtcNow;
             complaint.StageDueAt = complaint.AssignedAt + complaint.CurrentStageTime;
 
