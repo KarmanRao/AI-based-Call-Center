@@ -58,7 +58,7 @@ namespace AiCallCenterBackend.Controllers
                 return BadRequest("Cannot escalate resolved complaint");
 
             if (complaint.EscalationLevel >= 3)
-                return BadRequest("Already at Director level");
+                return BadRequest("Already at max level");
 
             complaint.EscalationLevel += 1;
             complaint.AssignedAt = DateTime.UtcNow;
@@ -77,27 +77,29 @@ namespace AiCallCenterBackend.Controllers
             return Ok(complaint);
         }
 
-        // ================= RESOLVE (STRICT VALIDATION) =================
+        // ================= RESOLVE (UPDATED) =================
         [HttpPut("resolve/{id}")]
         public async Task<IActionResult> Resolve(int id, [FromBody] ResolveRequest request)
         {
             var complaint = await _context.Complaints.FirstOrDefaultAsync(c => c.Id == id);
 
             if (complaint == null)
-                return NotFound("Complaint not found");
+                return NotFound();
 
-            // ❌ STRICT RULES
             if (string.IsNullOrWhiteSpace(request.Note))
-                return BadRequest("Resolution note is required");
+                return BadRequest("Resolution note required");
 
             if (string.IsNullOrWhiteSpace(request.ImageBase64))
-                return BadRequest("Resolution image is required");
+                return BadRequest("Resolution image required");
 
             complaint.Status = "Resolved";
             complaint.ResolvedAt = DateTime.UtcNow;
 
             complaint.ResolutionNote = request.Note;
             complaint.ResolutionImageBase64 = request.ImageBase64;
+
+            // ✅ NEW FIELD
+            complaint.ResolvedBy = request.ResolvedBy;
 
             await _context.SaveChangesAsync();
 
@@ -110,5 +112,8 @@ namespace AiCallCenterBackend.Controllers
     {
         public string Note { get; set; } = "";
         public string ImageBase64 { get; set; } = "";
+
+        // ✅ NEW
+        public string ResolvedBy { get; set; } = "";
     }
 }

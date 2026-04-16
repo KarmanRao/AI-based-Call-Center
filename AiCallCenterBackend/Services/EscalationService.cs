@@ -1,6 +1,6 @@
-using Microsoft.EntityFrameworkCore;
-using AiCallCenterBackend.Data;
 using AiCallCenterBackend.Models;
+using AiCallCenterBackend.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace AiCallCenterBackend.Services
 {
@@ -13,40 +13,45 @@ namespace AiCallCenterBackend.Services
             _context = context;
         }
 
+        // ================= MANUAL ESCALATION =================
+        public void ApplyEscalation(Complaint complaint)
+        {
+            if (complaint.Status == "Resolved")
+                return;
+
+            if (complaint.EscalationLevel >= 3)
+                return;
+
+            complaint.EscalationLevel += 1;
+            complaint.AssignedAt = DateTime.UtcNow;
+            complaint.StageDueAt = complaint.AssignedAt + complaint.CurrentStageTime;
+
+            complaint.AssignedTo = complaint.EscalationLevel switch
+            {
+                1 => "Junior Officer",
+                2 => "Senior Officer",
+                3 => "Director",
+                _ => "Director"
+            };
+        }
+
+        // ================= AUTO ESCALATION (FIX FOR YOUR ERROR) =================
         public async Task AutoEscalateComplaints()
         {
+            var now = DateTime.UtcNow;
+
             var complaints = await _context.Complaints
-                .Where(c => c.Status != "Resolved")
+                .Where(c => c.Status != "Resolved" &&
+                            c.EscalationLevel < 3 &&
+                            c.StageDueAt <= now)
                 .ToListAsync();
 
             foreach (var complaint in complaints)
             {
-                if (complaint.EscalationLevel >= 4)
-                    continue;
-
-                if (DateTime.UtcNow >= complaint.StageDueAt)
-                {
-                    complaint.EscalationLevel++;
-
-                    complaint.AssignedTo = EscalationHelper.GetNextLevel(complaint.EscalationLevel);
-
-                    // 🔥 REDUCE TIME
-                    complaint.CurrentStageTime -= complaint.ReductionTime;
-
-                    if (complaint.CurrentStageTime < complaint.MinStageTime)
-                    {
-                        complaint.CurrentStageTime = complaint.MinStageTime;
-                    }
-
-                    complaint.AssignedAt = DateTime.UtcNow;
-                    complaint.StageDueAt = complaint.AssignedAt + complaint.CurrentStageTime;
-                }
+                ApplyEscalation(complaint);
             }
 
             await _context.SaveChangesAsync();
-
-            // 🔴 FUTURE (Oracle)
-            // This SaveChanges will persist data in real DB automatically
         }
     }
 }

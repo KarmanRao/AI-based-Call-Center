@@ -3,7 +3,6 @@ namespace AiCallCenterBackend.Models
     public class Complaint
     {
         public int Id { get; set; }
-
         public string TicketId { get; set; } = string.Empty;
 
         public string UserName { get; set; } = string.Empty;
@@ -25,16 +24,13 @@ namespace AiCallCenterBackend.Models
         public DateTime AssignedAt { get; set; }
 
         public TimeSpan CurrentStageTime { get; set; }
-        public TimeSpan ReductionTime { get; set; }
-        public TimeSpan MinStageTime { get; set; }
-
         public DateTime StageDueAt { get; set; }
 
-        // ================= RESOLUTION =================
-        public string? ResolutionNote { get; set; }
         public DateTime? ResolvedAt { get; set; }
-
-        // 📸 IMAGE PROOF (BASE64)
+        public string? ResolutionNote { get; set; }
         public string? ResolutionImageBase64 { get; set; }
+
+        // ✅ NEW FIELD
+        public string? ResolvedBy { get; set; }
     }
 }

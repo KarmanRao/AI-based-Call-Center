@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AiCallCenterBackend")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a32c7619f03983db5302fe5ed07d35285c948720")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e5fc4e22b4d4bb0ca2137cdff130b6dfc88a2857")]
 [assembly: System.Reflection.AssemblyProductAttribute("AiCallCenterBackend")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AiCallCenterBackend")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

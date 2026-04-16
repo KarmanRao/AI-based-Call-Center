@@ -26,6 +26,7 @@ interface Complaint {
   resolvedAt?: string;
   resolutionNote?: string;
   resolutionImageBase64?: string;
+  resolvedBy?: string;
 }
 
 function Dashboard() {
@@ -40,13 +41,14 @@ function Dashboard() {
     verticalAlign: "top",
   };
 
+  const currentUser = "Admin Officer";
+
   useEffect(() => {
     fetch("http://localhost:5196/api/complaints")
       .then((res) => res.json())
       .then((data) => setComplaints(data));
   }, []);
 
-  // ================= BASE64 =================
   const toBase64 = (file: File, id: number) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -58,7 +60,6 @@ function Dashboard() {
     reader.readAsDataURL(file);
   };
 
-  // ================= RESOLVE =================
   const canResolve = (id: number) => {
     return (
       (notes[id] ?? "").trim().length > 0 &&
@@ -75,6 +76,7 @@ function Dashboard() {
         body: JSON.stringify({
           note: notes[id],
           imageBase64: images[id],
+          resolvedBy: currentUser,
         }),
       }
     );
@@ -86,17 +88,11 @@ function Dashboard() {
     );
   };
 
-  // ================= ESCALATE =================
   const handleEscalate = async (id: number) => {
     const res = await fetch(
       `http://localhost:5196/api/complaints/escalate/${id}`,
       { method: "PUT" }
     );
-
-    if (!res.ok) {
-      alert(await res.text());
-      return;
-    }
 
     const updated = await res.json();
 
@@ -107,14 +103,19 @@ function Dashboard() {
 
   return (
     <div style={{ padding: "20px" }}>
-      <h2>📊 Complaints Dashboard</h2>
+
+      {/* ❌ REMOVED: AI Call Center Admin Panel text */}
+
+      <h2 style={{ marginBottom: "15px" }}>
+        📊 Complaints Dashboard
+      </h2>
 
       <div style={{ overflowX: "auto" }}>
         <table
           style={{
             width: "100%",
             borderCollapse: "collapse",
-            minWidth: "2200px",
+            minWidth: "2300px",
           }}
         >
           <thead>
@@ -122,22 +123,19 @@ function Dashboard() {
               <th style={cellStyle}>Ticket</th>
               <th style={cellStyle}>User</th>
               <th style={cellStyle}>Phone</th>
-
               <th style={cellStyle}>Ward</th>
               <th style={cellStyle}>Area</th>
               <th style={cellStyle}>Address</th>
               <th style={cellStyle}>Category</th>
               <th style={cellStyle}>Department</th>
               <th style={cellStyle}>Description</th>
-
               <th style={cellStyle}>Status</th>
               <th style={cellStyle}>Escalation</th>
               <th style={cellStyle}>Assigned</th>
-
               <th style={cellStyle}>Created</th>
               <th style={cellStyle}>Due</th>
               <th style={cellStyle}>Resolved</th>
-
+              <th style={cellStyle}>Resolved By</th>
               <th style={cellStyle}>Note</th>
               <th style={cellStyle}>Image</th>
               <th style={cellStyle}>Action</th>
@@ -150,32 +148,27 @@ function Dashboard() {
                 <td style={cellStyle}>{c.ticketId}</td>
                 <td style={cellStyle}>{c.userName}</td>
                 <td style={cellStyle}>{c.callerPhone}</td>
-
                 <td style={cellStyle}>{c.wardId}</td>
                 <td style={cellStyle}>{c.areaId}</td>
                 <td style={cellStyle}>{c.address}</td>
                 <td style={cellStyle}>{c.category}</td>
                 <td style={cellStyle}>{c.department}</td>
                 <td style={cellStyle}>{c.description}</td>
-
                 <td style={cellStyle}>{c.status}</td>
                 <td style={cellStyle}>{c.escalationLevel}</td>
                 <td style={cellStyle}>{c.assignedTo}</td>
-
                 <td style={cellStyle}>
                   {new Date(c.createdAt).toLocaleString()}
                 </td>
-
                 <td style={cellStyle}>
                   {new Date(c.stageDueAt).toLocaleString()}
                 </td>
-
                 <td style={cellStyle}>
                   {c.resolvedAt
                     ? new Date(c.resolvedAt).toLocaleString()
                     : "-"}
                 </td>
-
+                <td style={cellStyle}>{c.resolvedBy || "-"}</td>
                 <td style={cellStyle}>{c.resolutionNote || "-"}</td>
 
                 <td style={cellStyle}>
@@ -186,6 +179,7 @@ function Dashboard() {
                         width: 80,
                         height: 80,
                         objectFit: "cover",
+                        borderRadius: "6px",
                       }}
                     />
                   ) : (
@@ -198,19 +192,14 @@ function Dashboard() {
                   {c.status !== "Resolved" && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
 
-                      {/* NOTE */}
                       <input
                         placeholder="Resolution note"
                         value={notes[c.id] || ""}
                         onChange={(e) =>
-                          setNotes({
-                            ...notes,
-                            [c.id]: e.target.value,
-                          })
+                          setNotes({ ...notes, [c.id]: e.target.value })
                         }
                       />
 
-                      {/* FILE */}
                       <input
                         type="file"
                         accept="image/*"
@@ -221,7 +210,6 @@ function Dashboard() {
                         }}
                       />
 
-                      {/* CAMERA */}
                       <input
                         type="file"
                         accept="image/*"
@@ -233,33 +221,39 @@ function Dashboard() {
                         }}
                       />
 
-                      <div style={{ display: "flex", gap: "5px" }}>
-                        {/* ESCALATE */}
-                        {c.status !== "Resolved" && (c.escalationLevel ?? 0) < 3 && (
-                          <button
-                            onClick={() => handleEscalate(c.id)}
-                            style={{
-                              background: "orange",
-                              color: "white",
-                              border: "none",
-                              padding: "5px",
-                              cursor: "pointer",
-                            }}
-                          >
-                            Escalate
-                          </button>
-                        )}
+                      <div style={{ display: "flex", gap: "6px" }}>
 
-                        {/* RESOLVE */}
+                        {/* 🔥 ESCALATE BUTTON (RESTORED COLOR) */}
+                        {c.status !== "Resolved" &&
+                          (c.escalationLevel ?? 0) < 3 && (
+                            <button
+                              onClick={() => handleEscalate(c.id)}
+                              style={{
+                                background: "#ff9800",
+                                color: "white",
+                                border: "none",
+                                padding: "6px 10px",
+                                borderRadius: "5px",
+                                cursor: "pointer",
+                                fontWeight: "bold",
+                              }}
+                            >
+                              Escalate
+                            </button>
+                          )}
+
+                        {/* 🔥 RESOLVE BUTTON (RESTORED COLOR) */}
                         <button
                           onClick={() => handleResolve(c.id)}
                           disabled={!canResolve(c.id)}
                           style={{
-                            background: canResolve(c.id) ? "green" : "gray",
+                            background: canResolve(c.id) ? "#2e7d32" : "#9e9e9e",
                             color: "white",
                             border: "none",
-                            padding: "5px",
+                            padding: "6px 10px",
+                            borderRadius: "5px",
                             cursor: canResolve(c.id) ? "pointer" : "not-allowed",
+                            fontWeight: "bold",
                           }}
                         >
                           Resolve
