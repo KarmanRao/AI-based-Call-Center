@@ -3,26 +3,19 @@ import { useEffect, useState } from "react";
 interface Complaint {
   id: number;
   ticketId: string;
-
   userName: string;
   callerPhone: string;
   address: string;
-
   wardId: number;
   areaId: number;
-
   category: string;
   description: string;
   department: string;
-
   createdAt: string;
   status: string;
-
   escalationLevel: number;
   assignedTo: string;
-
   stageDueAt: string;
-
   resolvedAt?: string;
   resolutionNote?: string;
   resolutionImageBase64?: string;
@@ -34,21 +27,34 @@ function Dashboard() {
   const [notes, setNotes] = useState<{ [key: number]: string }>({});
   const [images, setImages] = useState<{ [key: number]: string }>({});
 
+  const role = localStorage.getItem("role");
+  const department = localStorage.getItem("department");
+  const currentUser = localStorage.getItem("username");
+
   const cellStyle = {
     border: "1px solid #ccc",
     padding: "8px",
     whiteSpace: "nowrap" as const,
-    verticalAlign: "top",
+    textAlign: "center" as const,
   };
 
-  const currentUser = "Admin Officer";
-
+  // ================= FETCH =================
   useEffect(() => {
     fetch("http://localhost:5196/api/complaints")
       .then((res) => res.json())
-      .then((data) => setComplaints(data));
+      .then((data) => {
+        if (role === "Technician") {
+          data = data.filter(
+            (c: any) =>
+              c.department?.toLowerCase().trim() ===
+              department?.toLowerCase().trim()
+          );
+        }
+        setComplaints(data);
+      });
   }, []);
 
+  // ================= BASE64 =================
   const toBase64 = (file: File, id: number) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -60,6 +66,7 @@ function Dashboard() {
     reader.readAsDataURL(file);
   };
 
+  // ================= VALIDATION =================
   const canResolve = (id: number) => {
     return (
       (notes[id] ?? "").trim().length > 0 &&
@@ -67,6 +74,7 @@ function Dashboard() {
     );
   };
 
+  // ================= RESOLVE =================
   const handleResolve = async (id: number) => {
     const res = await fetch(
       `http://localhost:5196/api/complaints/resolve/${id}`,
@@ -88,11 +96,17 @@ function Dashboard() {
     );
   };
 
+  // ================= ESCALATE =================
   const handleEscalate = async (id: number) => {
     const res = await fetch(
       `http://localhost:5196/api/complaints/escalate/${id}`,
       { method: "PUT" }
     );
+
+    if (!res.ok) {
+      alert(await res.text());
+      return;
+    }
 
     const updated = await res.json();
 
@@ -101,21 +115,40 @@ function Dashboard() {
     );
   };
 
+  // ================= LOGOUT =================
+  const handleLogout = () => {
+    localStorage.clear();
+    window.location.href = "/";
+  };
+
   return (
     <div style={{ padding: "20px" }}>
+      
+      {/* HEADER */}
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <h2>Complaints Dashboard</h2>
+        <button
+          onClick={handleLogout}
+          style={{
+            background: "red",
+            color: "white",
+            padding: "8px 12px",
+            border: "none",
+            borderRadius: "6px",
+            cursor: "pointer",
+          }}
+        >
+          Logout
+        </button>
+      </div>
 
-      {/* ❌ REMOVED: AI Call Center Admin Panel text */}
-
-      <h2 style={{ marginBottom: "15px" }}>
-        📊 Complaints Dashboard
-      </h2>
-
-      <div style={{ overflowX: "auto" }}>
+      {/* TABLE */}
+      <div style={{ overflowX: "auto", marginTop: "10px" }}>
         <table
           style={{
             width: "100%",
             borderCollapse: "collapse",
-            minWidth: "2300px",
+            minWidth: "1600px",
           }}
         >
           <thead>
@@ -128,16 +161,13 @@ function Dashboard() {
               <th style={cellStyle}>Address</th>
               <th style={cellStyle}>Category</th>
               <th style={cellStyle}>Department</th>
-              <th style={cellStyle}>Description</th>
               <th style={cellStyle}>Status</th>
               <th style={cellStyle}>Escalation</th>
               <th style={cellStyle}>Assigned</th>
               <th style={cellStyle}>Created</th>
               <th style={cellStyle}>Due</th>
-              <th style={cellStyle}>Resolved</th>
               <th style={cellStyle}>Resolved By</th>
-              <th style={cellStyle}>Note</th>
-              <th style={cellStyle}>Image</th>
+              <th style={cellStyle}>Proof</th>
               <th style={cellStyle}>Action</th>
             </tr>
           </thead>
@@ -153,7 +183,6 @@ function Dashboard() {
                 <td style={cellStyle}>{c.address}</td>
                 <td style={cellStyle}>{c.category}</td>
                 <td style={cellStyle}>{c.department}</td>
-                <td style={cellStyle}>{c.description}</td>
                 <td style={cellStyle}>{c.status}</td>
                 <td style={cellStyle}>{c.escalationLevel}</td>
                 <td style={cellStyle}>{c.assignedTo}</td>
@@ -163,38 +192,31 @@ function Dashboard() {
                 <td style={cellStyle}>
                   {new Date(c.stageDueAt).toLocaleString()}
                 </td>
-                <td style={cellStyle}>
-                  {c.resolvedAt
-                    ? new Date(c.resolvedAt).toLocaleString()
-                    : "-"}
-                </td>
                 <td style={cellStyle}>{c.resolvedBy || "-"}</td>
-                <td style={cellStyle}>{c.resolutionNote || "-"}</td>
 
+                {/* IMAGE */}
                 <td style={cellStyle}>
                   {c.resolutionImageBase64 ? (
                     <img
                       src={c.resolutionImageBase64}
                       style={{
-                        width: 80,
-                        height: 80,
+                        width: "70px",
+                        height: "70px",
                         objectFit: "cover",
                         borderRadius: "6px",
                       }}
                     />
-                  ) : (
-                    "-"
-                  )}
+                  ) : "-"}
                 </td>
 
-                {/* ================= ACTION ================= */}
+                {/* ACTION */}
                 <td style={cellStyle}>
                   {c.status !== "Resolved" && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
 
                       <input
                         placeholder="Resolution note"
-                        value={notes[c.id] || ""}
+                        style={{ padding: "4px" }}
                         onChange={(e) =>
                           setNotes({ ...notes, [c.id]: e.target.value })
                         }
@@ -203,62 +225,53 @@ function Dashboard() {
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => {
-                          if (e.target.files?.[0]) {
-                            toBase64(e.target.files[0], c.id);
-                          }
-                        }}
+                        onChange={(e) =>
+                          e.target.files && toBase64(e.target.files[0], c.id)
+                        }
                       />
 
                       <input
                         type="file"
                         accept="image/*"
                         capture="environment"
-                        onChange={(e) => {
-                          if (e.target.files?.[0]) {
-                            toBase64(e.target.files[0], c.id);
-                          }
-                        }}
+                        onChange={(e) =>
+                          e.target.files && toBase64(e.target.files[0], c.id)
+                        }
                       />
 
-                      <div style={{ display: "flex", gap: "6px" }}>
+                      <div style={{ display: "flex", gap: "5px" }}>
+                        {(c.escalationLevel ?? 0) < 3 && (
+                          <button
+                            onClick={() => handleEscalate(c.id)}
+                            style={{
+                              background: "orange",
+                              color: "white",
+                              border: "none",
+                              padding: "5px",
+                              borderRadius: "5px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Escalate
+                          </button>
+                        )}
 
-                        {/* 🔥 ESCALATE BUTTON (RESTORED COLOR) */}
-                        {c.status !== "Resolved" &&
-                          (c.escalationLevel ?? 0) < 3 && (
-                            <button
-                              onClick={() => handleEscalate(c.id)}
-                              style={{
-                                background: "#ff9800",
-                                color: "white",
-                                border: "none",
-                                padding: "6px 10px",
-                                borderRadius: "5px",
-                                cursor: "pointer",
-                                fontWeight: "bold",
-                              }}
-                            >
-                              Escalate
-                            </button>
-                          )}
-
-                        {/* 🔥 RESOLVE BUTTON (RESTORED COLOR) */}
                         <button
                           onClick={() => handleResolve(c.id)}
                           disabled={!canResolve(c.id)}
                           style={{
-                            background: canResolve(c.id) ? "#2e7d32" : "#9e9e9e",
+                            background: canResolve(c.id) ? "green" : "gray",
                             color: "white",
                             border: "none",
-                            padding: "6px 10px",
+                            padding: "5px",
                             borderRadius: "5px",
                             cursor: canResolve(c.id) ? "pointer" : "not-allowed",
-                            fontWeight: "bold",
                           }}
                         >
                           Resolve
                         </button>
                       </div>
+
                     </div>
                   )}
                 </td>

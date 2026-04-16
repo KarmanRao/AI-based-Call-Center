@@ -1,9 +1,12 @@
 import Dashboard from "./pages/Dashboard";
+import Login from "./pages/Login";
 
 function App() {
+  const role = localStorage.getItem("role");
+
   return (
     <div>
-      <Dashboard />
+      {role ? <Dashboard /> : <Login />}
     </div>
   );
 }

@@ -33,9 +33,16 @@ namespace AiCallCenterBackend.Controllers
             complaint.CreatedAt = DateTime.UtcNow;
             complaint.Status = "New";
 
+            // ✅ ADD THIS (department mapping — safe)
+            complaint.Department = MapCategoryToDepartment(complaint.Category);
+
             complaint.AssignedTo = "Technician";
             complaint.EscalationLevel = 0;
             complaint.AssignedAt = DateTime.UtcNow;
+
+            // ⚠️ SAFE CHECK (prevents crash if null/default)
+            if (complaint.CurrentStageTime == TimeSpan.Zero)
+                complaint.CurrentStageTime = TimeSpan.FromHours(6);
 
             complaint.StageDueAt = complaint.AssignedAt + complaint.CurrentStageTime;
 
@@ -62,6 +69,8 @@ namespace AiCallCenterBackend.Controllers
 
             complaint.EscalationLevel += 1;
             complaint.AssignedAt = DateTime.UtcNow;
+
+            // ✅ SAFE TIME UPDATE (no dependency on missing fields)
             complaint.StageDueAt = complaint.AssignedAt + complaint.CurrentStageTime;
 
             complaint.AssignedTo = complaint.EscalationLevel switch
@@ -77,7 +86,7 @@ namespace AiCallCenterBackend.Controllers
             return Ok(complaint);
         }
 
-        // ================= RESOLVE (UPDATED) =================
+        // ================= RESOLVE =================
         [HttpPut("resolve/{id}")]
         public async Task<IActionResult> Resolve(int id, [FromBody] ResolveRequest request)
         {
@@ -98,12 +107,30 @@ namespace AiCallCenterBackend.Controllers
             complaint.ResolutionNote = request.Note;
             complaint.ResolutionImageBase64 = request.ImageBase64;
 
-            // ✅ NEW FIELD
+            // ✅ SAFE (no breaking)
             complaint.ResolvedBy = request.ResolvedBy;
 
             await _context.SaveChangesAsync();
 
             return Ok(complaint);
+        }
+
+        // ================= HELPER =================
+        private static string MapCategoryToDepartment(string category)
+        {
+            var normalized = (category ?? "").ToLower();
+
+            return normalized switch
+            {
+                "electricity" => "Street Light",
+                "water" => "Water Works",
+                "road" => "Road",
+                "drainage" => "Drainage Projects",
+                "sewage" => "Sewage Disposal Works",
+                "waste" => "Solid Waste Management",
+                "health" => "Health Department",
+                _ => "General"
+            };
         }
     }
 
@@ -112,8 +139,6 @@ namespace AiCallCenterBackend.Controllers
     {
         public string Note { get; set; } = "";
         public string ImageBase64 { get; set; } = "";
-
-        // ✅ NEW
         public string ResolvedBy { get; set; } = "";
     }
 }
